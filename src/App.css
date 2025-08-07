@@ -1,0 +1,5 @@
+.canvas-container {
+  background-image: linear-gradient(to right, lightgray 1px, transparent 1px),
+                    linear-gradient(to bottom, lightgray 1px, transparent 1px) !important;
+  background-size: 5px 5px !important;
+}

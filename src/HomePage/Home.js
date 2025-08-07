@@ -11,8 +11,9 @@ function Home() {
     const [startPoint, setStartPoint] = useState(null);
     const isDragging = useRef(false);
     const lastDrawnBox = useRef(null);
-
     const [tool, setTool] = useState("pencil");
+
+    const [history, setHistory] = useState([]); // ✅ Undo history
 
     const debounce = (func, delay) => {
         let timeout;
@@ -35,10 +36,8 @@ function Home() {
     useEffect(() => {
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-
         canvas.width = layoutWidth;
         canvas.height = layoutHeight;
-
         drawGrid(ctx, selectedBoxes, previewBoxes);
     }, [selectedBoxes, previewBoxes]);
 
@@ -46,11 +45,9 @@ function Home() {
         ctx.clearRect(0, 0, layoutWidth, layoutHeight);
 
         const cellMap = new Map();
-
         selected.forEach(b => {
             cellMap.set(`${b.row}-${b.col}`, 'lightblue');
         });
-
         preview.forEach(b => {
             if (!cellMap.has(`${b.row}-${b.col}`)) {
                 cellMap.set(`${b.row}-${b.col}`, 'lightgreen');
@@ -82,7 +79,13 @@ function Home() {
         setSelectedBoxes(prev => {
             const set = new Set(prev.map(b => `${b.row}-${b.col}`));
             const newBoxes = boxes.filter(box => !set.has(`${box.row}-${box.col}`));
-            return [...prev, ...newBoxes];
+            const updated = [...prev, ...newBoxes];
+
+            if (newBoxes.length > 0) {
+                setHistory(h => [...h, prev]); // ✅ Save previous state
+            }
+
+            return updated;
         });
     };
 
@@ -90,7 +93,6 @@ function Home() {
         const centerX = (start.col + end.col) / 2;
         const centerY = (start.row + end.row) / 2;
         const radius = Math.sqrt(Math.pow(end.col - centerX, 2) + Math.pow(end.row - centerY, 2));
-
         const result = [];
         const rStart = Math.floor(centerY - radius);
         const rEnd = Math.ceil(centerY + radius);
@@ -125,7 +127,6 @@ function Home() {
 
     const calculateBoxesInTriangle = (start, end) => {
         const result = [];
-
         const baseLeft = { x: start.col - Math.abs(end.col - start.col), y: start.row };
         const baseRight = { x: start.col + Math.abs(end.col - start.col), y: start.row };
         const apex = { x: end.col, y: end.row };
@@ -146,7 +147,6 @@ function Home() {
                 }
             }
         }
-
         return result;
     };
 
@@ -156,12 +156,10 @@ function Home() {
                 v2.x * (v3.y - v1.y) +
                 v3.x * (v1.y - v2.y)) / 2.0)
         );
-
         const A = area(a, b, c);
         const A1 = area(p, b, c);
         const A2 = area(a, p, c);
         const A3 = area(a, b, p);
-
         return Math.abs(A - (A1 + A2 + A3)) < 0.5;
     };
 
@@ -179,7 +177,6 @@ function Home() {
 
     const handleMouseMove = (e) => {
         if (!isDragging.current || !startPoint) return;
-
         const end = getBoxCoords(e);
 
         if (tool === "pencil") {
@@ -195,6 +192,7 @@ function Home() {
                         const newSelected = [...prev, end];
                         const ctx = canvasRef.current.getContext('2d');
                         drawGrid(ctx, newSelected, []);
+                        setHistory(h => [...h, prev]); // ✅ Store previous for pencil too
                         return newSelected;
                     }
                     return prev;
@@ -224,8 +222,19 @@ function Home() {
         setPreviewBoxes([]);
     };
 
+    const handleUndo = () => {
+        setHistory(prevHistory => {
+            if (prevHistory.length === 0) return prevHistory;
+            const newHistory = [...prevHistory];
+            const last = newHistory.pop();
+            setSelectedBoxes(last || []);
+            return newHistory;
+        });
+    };
+
     const clearSelection = () => {
         setSelectedBoxes([]);
+        setHistory([]); // ✅ Clear history as well
     };
 
     return (
@@ -236,6 +245,7 @@ function Home() {
                 <button onClick={() => setTool("rectangle")} style={{ marginRight: '10px', backgroundColor: tool === "rectangle" ? "#ccc" : "" }}>▭ Rectangle</button>
                 <button onClick={() => setTool("triangle")} style={{ marginRight: '10px', backgroundColor: tool === "triangle" ? "#ccc" : "" }}>🔺 Triangle</button>
                 <button onClick={clearSelection}>🧹 Clear</button>
+                <button onClick={handleUndo} style={{ marginLeft: '10px' }}>↩️ Undo</button>
             </div>
 
             <div style={{ position: "relative", width: layoutWidth, height: layoutHeight }}>
